@@ -18,12 +18,12 @@ namespace WilliamsProject1
             // TODO: change start and end calcs to a stopwatch
             var singleCounter = new SingleThreadCounter();
             var start = DateTime.Now;
-            singleCounter.Run("D:\\");
+            singleCounter.Run("C:\\Program Files (x86)\\Battle.net");
             var end = DateTime.Now;
 
             var multiCounter = new SingleThreadCounter();
             var multiStart = DateTime.Now;
-            multiCounter.RunParallel("D:\\");
+            multiCounter.RunParallel("C:\\Program Files (x86)\\Battle.net");
             var multiEnd = DateTime.Now;
 
             Console.WriteLine("Single: " + (end - start) + "s");
@@ -35,6 +35,10 @@ namespace WilliamsProject1
             Console.WriteLine("Parallel: " + multiCounter.FolderCount + " folders");
             Console.WriteLine("Parallel: " + multiCounter.FileCount + " files");
             Console.WriteLine("Parallel: " + multiCounter.ByteCount + " bytes");
+
+            // test for comparison
+            var dirs = Directory.GetDirectories("C:\\Program Files (x86)\\Battle.net", "*", SearchOption.AllDirectories);
+            Console.WriteLine("Test: " + dirs.Length + " folders");
         }
     }
 
@@ -56,51 +60,80 @@ namespace WilliamsProject1
         {
 
             var dir = new DirectoryInfo(root);
+            DirectoryInfo[] subDirectories;
 
             try
             {
-                foreach (var d in dir.GetDirectories())
-                {
-                    // TODO: if access is denied on the top level it kicks you out, fix
-                    // this isn't the case with a parallel loop since the parallel loop
-                    // will handle each directory seperately
-                    folderCount++;
-                    Run(d.FullName);
-
-                    foreach (var f in d.GetFiles())
-                    {
-                        fileCount++;
-                        byteCount += f.Length;
-                    }
-                }
+                 subDirectories = dir.GetDirectories();
             }
             catch (UnauthorizedAccessException e)
             {
-                Console.WriteLine(e.Message);
+                return;
             }
+
+            foreach (var d in subDirectories)
+            {
+                // TODO: if access is denied on the top level it kicks you out, fix
+                // this isn't the case with a parallel loop since the parallel loop
+                // will handle each directory seperately
+                folderCount++;
+                Run(d.FullName);
+
+                FileInfo[] files;
+
+                try
+                {
+                    files = dir.GetFiles();
+                }
+                catch (UnauthorizedAccessException e)
+                {
+                    return;
+                }
+
+                foreach (var f in files)
+                {
+                    fileCount++;
+                    byteCount += f.Length;
+                }
+            }
+            
         }
 
         public void RunParallel(string root)
         {
             var dir = new DirectoryInfo(root);
 
-                Parallel.ForEach(dir.GetDirectories(), d => {
-                    try
-                    {
-                        // TODO: need to put a lock or two in here to prevent deadlock
-                        folderCount++;
-                        Run(d.FullName);
+            DirectoryInfo[] subDirectories;
+            try
+            {
+                subDirectories = dir.GetDirectories();
+            }
+            catch (UnauthorizedAccessException e)
+            {
+                return;
+            }
 
-                        Parallel.ForEach(d.GetFiles(), f =>
-                        {
-                            fileCount++;
-                            byteCount += f.Length;
-                        });
-                    }
-                    catch (UnauthorizedAccessException e)
+            Parallel.ForEach(subDirectories, d => {
+
+                // TODO: need to put a lock or two in here to prevent deadlock
+                folderCount++;
+                RunParallel(d.FullName);
+                FileInfo[] files;
+
+                try
+                {
+                    files = dir.GetFiles();
+                }
+                catch (UnauthorizedAccessException e)
+                {
+                    return;
+                }
+
+                Parallel.ForEach(files, f =>
                     {
-                        Console.WriteLine(e.Message);
-                    }
+                        fileCount++;
+                        byteCount += f.Length;
+                    });
                 });
             }
         }
