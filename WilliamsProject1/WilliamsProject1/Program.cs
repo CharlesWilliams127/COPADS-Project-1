@@ -18,12 +18,12 @@ namespace WilliamsProject1
             // TODO: change start and end calcs to a stopwatch
             var singleCounter = new SingleThreadCounter();
             var start = DateTime.Now;
-            singleCounter.Run("C:\\Program Files (x86)\\Battle.net");
+            singleCounter.Run("D:\\");
             var end = DateTime.Now;
 
             var multiCounter = new SingleThreadCounter();
             var multiStart = DateTime.Now;
-            multiCounter.RunParallel("C:\\Program Files (x86)\\Battle.net");
+            multiCounter.RunParallel("D:\\");
             var multiEnd = DateTime.Now;
 
             Console.WriteLine("Single: " + (end - start) + "s");
@@ -37,13 +37,15 @@ namespace WilliamsProject1
             Console.WriteLine("Parallel: " + multiCounter.ByteCount + " bytes");
 
             // test for comparison
-            var dirs = Directory.GetDirectories("C:\\Program Files (x86)\\Battle.net", "*", SearchOption.AllDirectories);
-            Console.WriteLine("Test: " + dirs.Length + " folders");
+            //var dirs = Directory.GetDirectories("D:\\", "*", SearchOption.AllDirectories);
+            //Console.WriteLine("Test: " + dirs.Length + " folders");
         }
     }
 
     public class SingleThreadCounter
     {
+
+        public static Object myLock = new Object();
 
         // counter variables
         private int folderCount = 0;
@@ -92,8 +94,10 @@ namespace WilliamsProject1
 
                 foreach (var f in files)
                 {
+                    
                     fileCount++;
                     byteCount += f.Length;
+                    
                 }
             }
             
@@ -113,10 +117,14 @@ namespace WilliamsProject1
                 return;
             }
 
-            Parallel.ForEach(subDirectories, d => {
+            Parallel.ForEach(subDirectories, d => 
+            {
 
                 // TODO: need to put a lock or two in here to prevent deadlock
-                folderCount++;
+                lock (myLock)
+                {
+                    folderCount++;
+                }
                 RunParallel(d.FullName);
                 FileInfo[] files;
 
@@ -130,11 +138,14 @@ namespace WilliamsProject1
                 }
 
                 Parallel.ForEach(files, f =>
+                {
+                    lock (myLock)
                     {
                         fileCount++;
                         byteCount += f.Length;
-                    });
+                    }
                 });
-            }
+            });
         }
     }
+}
