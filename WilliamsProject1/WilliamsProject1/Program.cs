@@ -14,35 +14,81 @@ namespace WilliamsProject1
     {
         static void Main(string[] args)
         {
-            // hardcode directory for now
-            // TODO: change start and end calcs to a stopwatch
-            var singleCounter = new SingleThreadCounter();
-            var start = DateTime.Now;
-            singleCounter.Run("D:\\");
-            var end = DateTime.Now;
+            try
+            {
+                // switch on command line args
+                switch (args[1])
+                {
+                    case "-s": // single thread
+                        CountSequential(args[2]);
+                        break;
+                    case "-p": // parallel threads
+                        CountParallel(args[2]);
+                        break;
+                    case "-b": // both
+                        CountParallel(args[2]);
+                        CountSequential(args[2]);
+                        break;
+                    default:
+                        DisplayHelp();
+                        break;
+                }
+            }
+            catch (IndexOutOfRangeException)
+            {
+                Console.WriteLine("There was an insufficient number of arguments provided.");
+                DisplayHelp();
+            }
+            catch (DirectoryNotFoundException)
+            {
+                Console.WriteLine("The directory specified could not be found.");
+                DisplayHelp();
+            }
+        }
 
-            var multiCounter = new SingleThreadCounter();
-            var multiStart = DateTime.Now;
-            multiCounter.RunParallel("D:\\");
-            var multiEnd = DateTime.Now;
+        static void CountSequential(string root)
+        {
+            var du = new DiskUsageCounter();
+            var stopWatch = new Stopwatch();
 
-            Console.WriteLine("Single: " + (end - start) + "s");
-            Console.WriteLine("Single: " + singleCounter.FolderCount + " folders");
-            Console.WriteLine("Single: " + singleCounter.FileCount + " files");
-            Console.WriteLine("Single: " + singleCounter.ByteCount + " bytes");
+            stopWatch.Start();
+            du.RunSequential(root);
+            stopWatch.Stop();
 
-            Console.WriteLine("Parallel: " + (multiEnd - multiStart) + "s");
-            Console.WriteLine("Parallel: " + multiCounter.FolderCount + " folders");
-            Console.WriteLine("Parallel: " + multiCounter.FileCount + " files");
-            Console.WriteLine("Parallel: " + multiCounter.ByteCount + " bytes");
+            Console.WriteLine("Sequential Calculated in: {0}s", stopWatch.Elapsed.ToString("s\\.fffffff"));
+            Console.WriteLine("{0} folders, {1} files, {2} bytes\n", du.FolderCount.ToString("N0"), 
+                du.FileCount.ToString("N0"), 
+                du.ByteCount.ToString("N0"));
+        }
 
-            // test for comparison
-            //var dirs = Directory.GetDirectories("D:\\", "*", SearchOption.AllDirectories);
-            //Console.WriteLine("Test: " + dirs.Length + " folders");
+        static void CountParallel(string root)
+        {
+            var du = new DiskUsageCounter();
+            var stopWatch = new Stopwatch();
+
+            stopWatch.Start();
+            du.RunParallel(root);
+            stopWatch.Stop();
+
+            Console.WriteLine("Sequential Calculated in: {0}s", stopWatch.Elapsed.ToString("s\\.fffffff"));
+            Console.WriteLine("{0} folders, {1} files, {2} bytes\n", du.FolderCount.ToString("N0"), 
+                du.FileCount.ToString("N0"), 
+                du.ByteCount.ToString("N0"));
+        }
+
+        static void DisplayHelp()
+        {
+            Console.Write("Usage: du [-s] [-p] [-b] <path>\n" +
+                            "Summarize disk usage of the set of FILES, recursively for directories.\n\n" +
+                            "You MUST specify one of the parameters, -s, -p, or -b\n" +
+                            "-s\tRun in single threaded mode\n" +
+                            "-p\tRun in parallel mode (uses all available processors)\n" +
+                            "-b\tRun in both parallel and single threaded mode.\n" +
+                            "  \tRuns parallel followed by sequential mode\n");
         }
     }
 
-    public class SingleThreadCounter
+    public class DiskUsageCounter
     {
 
         public static Object myLock = new Object();
@@ -58,9 +104,8 @@ namespace WilliamsProject1
         public long ByteCount { get { return byteCount; } }
 
 
-        public void Run(string root)
+        public void RunSequential(string root)
         {
-
             var dir = new DirectoryInfo(root);
             DirectoryInfo[] subDirectories;
 
@@ -68,18 +113,15 @@ namespace WilliamsProject1
             {
                  subDirectories = dir.GetDirectories();
             }
-            catch (UnauthorizedAccessException e)
+            catch (UnauthorizedAccessException)
             {
                 return;
             }
 
             foreach (var d in subDirectories)
             {
-                // TODO: if access is denied on the top level it kicks you out, fix
-                // this isn't the case with a parallel loop since the parallel loop
-                // will handle each directory seperately
                 folderCount++;
-                Run(d.FullName);
+                RunSequential(d.FullName);
 
                 FileInfo[] files;
 
@@ -87,7 +129,7 @@ namespace WilliamsProject1
                 {
                     files = dir.GetFiles();
                 }
-                catch (UnauthorizedAccessException e)
+                catch (UnauthorizedAccessException)
                 {
                     return;
                 }
@@ -112,15 +154,13 @@ namespace WilliamsProject1
             {
                 subDirectories = dir.GetDirectories();
             }
-            catch (UnauthorizedAccessException e)
+            catch (UnauthorizedAccessException)
             {
                 return;
             }
 
             Parallel.ForEach(subDirectories, d => 
             {
-
-                // TODO: need to put a lock or two in here to prevent deadlock
                 lock (myLock)
                 {
                     folderCount++;
@@ -132,7 +172,7 @@ namespace WilliamsProject1
                 {
                     files = dir.GetFiles();
                 }
-                catch (UnauthorizedAccessException e)
+                catch (UnauthorizedAccessException)
                 {
                     return;
                 }
